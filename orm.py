@@ -1,10 +1,10 @@
 '''
- v4
-- экранирование
+ v5
+- select->filter
+- переделан where
 '''
 
 import sqlite3
-import re
 
 conn = sqlite3.connect("database.db")
 cursor = conn.cursor()
@@ -58,7 +58,7 @@ class Manager(object):
             self.model_cls = owner
         return self
 
-    def select(self, *args, where=None, limit=None):  # limit:int, where:str
+    def filter(self, *args, limit=None, **kwargs):
         '''Выборка из базы данных'''
 
         def transform(cls):
@@ -74,28 +74,41 @@ class Manager(object):
             return result
 
         clas = self.model_cls
+
         if args == '*':
             sql = args
         else:
             sql = ",".join(["{}".format(column) for column in args])
-        if not where and not limit:
-            cursor.execute("SELECT {} FROM {}".format(sql, clas.__name__))
-            return transform(clas)
-        if where and not limit:
-            temp = re.split(r'[>=<!]', where)
-            where_col = temp[0] + where[len(temp[0]):len(where)-len(temp[-1])] + '?'
-            where_val = tuple(temp[-1])
-            cursor.execute("SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_col),where_val)
-            return transform(clas)
-        if not where and limit:
-            cursor.execute("SELECT {} FROM {} LIMIT {}".format(sql, clas.__name__, limit))
-            return transform(clas)
-        if where and limit:
-            temp = re.split(r'[>=<!]', where)
-            where_col = temp[0] + where[len(temp[0]):len(where) - len(temp[-1])] + '?'
-            where_val = tuple(temp[-1])
-            cursor.execute("SELECT {} FROM {} WHERE {} LIMIT {}".format(sql, clas.__name__, where_col,limit), where_val)
-            return transform(clas)
+
+        if not kwargs:
+            where = None
+        elif len(kwargs.keys()) != 1:
+            raise Exception('incorrect where')
+        else:
+            where = list(kwargs.items())
+            where_col, where_operation = where[0][0].split('__')
+            where_val = list()
+            where_val.append(where[0][1])
+            where_operation = where_operation.replace('lt', '<').replace('le', '<=').replace('eq', '=').replace(
+                'ne', '!=').replace('gt', '>').replace('ge', '>=')
+
+            if not where and not limit:
+                cursor.execute("SELECT {} FROM {}".format(sql, clas.__name__))
+                return transform(clas)
+            if where and not limit:
+                cursor.execute(
+                    "SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_col + where_operation + '?'),
+                    where_val)
+                return transform(clas)
+            if not where and limit:
+                cursor.execute("SELECT {} FROM {} LIMIT {}".format(sql, clas.__name__, limit))
+                return transform(clas)
+            if where and limit:
+                cursor.execute(
+                    "SELECT {} FROM {} WHERE {} LIMIT {}".format(sql, clas.__name__, where_col + where_operation + '?',
+                                                                 limit),
+                    where_val)
+                return transform(clas)
 
 
 class Model(metaclass=ModelMeta):
@@ -155,9 +168,9 @@ class User(Model):
 # class Student(User):
 #     age = TEXT()
 
-# User.objects.select('*',where='id>6')
+# User.objects.filter('*', id__gt=10)
 # User(name='Ivan',id=2).add()
-# users = User.objects.select('*',where='id>3',limit=2)
+# users = User.objects.filter('*', id__ge=16)
 # for i in users:
 #     print(i.id)
 # for user in users:
