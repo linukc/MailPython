@@ -97,7 +97,7 @@ class Manager(object):
                 return transform(clas)
             if where and not limit:
                 cursor.execute(
-                    "SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_col + where_operation + '?'),
+                    "SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_col+' ' + where_operation + ' ?'),
                     where_val)
                 return transform(clas)
             if not where and limit:
@@ -170,9 +170,9 @@ class User(Model):
 
 # User.objects.filter('*', id__gt=10)
 # User(name='Ivan',id=2).add()
-# users = User.objects.filter('*', id__ge=16)
+# users = User.objects.filter('*', id__is=None)
 # for i in users:
-#     print(i.id)
+#     print(i.age)
 # for user in users:
 #     print(user.id)
 # Book = create_model("Book")
