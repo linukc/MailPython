@@ -80,35 +80,37 @@ class Manager(object):
         else:
             sql = ",".join(["{}".format(column) for column in args])
 
+        replacement_dict = {'lt': '<', 'le': '<=', 'eq': '=', 'ne': '!=', 'gt': '>', 'ge': '>=', 'is': 'is'}
         if not kwargs:
             where = None
-        elif len(kwargs.keys()) != 1:
-            raise Exception('incorrect where')
-        else:
-            where = list(kwargs.items())
-            where_col, where_operation = where[0][0].split('__')
-            where_val = list()
-            where_val.append(where[0][1])
-            where_operation = where_operation.replace('lt', '<').replace('le', '<=').replace('eq', '=').replace(
-                'ne', '!=').replace('gt', '>').replace('ge', '>=')
 
-            if not where and not limit:
-                cursor.execute("SELECT {} FROM {}".format(sql, clas.__name__))
-                return transform(clas)
-            if where and not limit:
-                cursor.execute(
-                    "SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_col+' ' + where_operation + ' ?'),
-                    where_val)
-                return transform(clas)
-            if not where and limit:
-                cursor.execute("SELECT {} FROM {} LIMIT {}".format(sql, clas.__name__, limit))
-                return transform(clas)
-            if where and limit:
-                cursor.execute(
-                    "SELECT {} FROM {} WHERE {} LIMIT {}".format(sql, clas.__name__, where_col + where_operation + '?',
-                                                                 limit),
-                    where_val)
-                return transform(clas)
+        where = list(kwargs.items())
+        where_col = [i[0].split('__')[0] for i in where]
+        where_operation = [i[0].split('__')[1] for i in where]
+        where_val = [i[1] for i in where]
+        where_operation = list(map(lambda i: replacement_dict.get(i), where_operation))
+        if None in where_operation:
+            raise Exception('incorrect operation in where statement')
+
+        if not where and not limit:
+            cursor.execute("SELECT {} FROM {}".format(sql, clas.__name__))
+            return transform(clas)
+        if where and not limit:
+            where_str = ' AND '.join([where_col[i] + where_operation[i] + '?' for i in range(len(where))])
+            cursor.execute(
+                "SELECT {} FROM {} WHERE {}".format(sql, clas.__name__, where_str),
+                where_val)
+            return transform(clas)
+        if not where and limit:
+            cursor.execute("SELECT {} FROM {} LIMIT {}".format(sql, clas.__name__, limit))
+            return transform(clas)
+        if where and limit:
+            where_str = ' AND '.join([where_col[i] + where_operation[i] + '?' for i in range(len(where))])
+            cursor.execute(
+                "SELECT {} FROM {} WHERE {} LIMIT {}".format(sql, clas.__name__, where_str,
+                                                             limit),
+                where_val)
+            return transform(clas)
 
 
 class Model(metaclass=ModelMeta):
@@ -170,7 +172,7 @@ class User(Model):
 
 # User.objects.filter('*', id__gt=10)
 # User(name='Ivan',id=2).add()
-# users = User.objects.filter('*', id__is=None)
+# users = User.objects.filter('*', id__gt=1, age__gt=3)
 # for i in users:
 #     print(i.age)
 # for user in users:
