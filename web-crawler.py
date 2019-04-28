@@ -1,31 +1,32 @@
 import asyncio
 import aiohttp
-from aioelasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from datetime import datetime
-import time
 
 
-async def fetch_url(str_task, url, session, queue, unique_url):
+async def fetch_url(str_task, session, queue, unique_url, es, semaphore):
     while True:
+        await semaphore.acquire()
+        url = await queue.get()
+
         async with session.get(url) as response:
             data = await response.read()
-            soup = BeautifulSoup(data, 'html.parser')
+            html = BeautifulSoup(data, 'html.parser')
 
-            for link in soup.find_all('a') + soup.find_all('link'):
+            for link in html.find_all('a') + html.find_all('link'):
                 link = urljoin(url, link.get('href'))
                 if link.startswith('https://docs.python.org/') and link not in unique_url.keys():
-                    # print(f"{str_task} Кладу {link}")
                     queue.put_nowait(link)
-                    unique_url[link] = str(datetime.now())
+                    unique_url[link] = datetime.now()
 
-            if queue.empty():
-                queue.task_done()
-                # print('Закончил' + str_task)
-            else:
-                url = await queue.get()
-                # print(f"{str_task} Беру {url}")
+                    es.index(index="crawler", doc_type='info', body={
+                        'site': link,
+                        'texts': html.get_text(),
+                        'timestamp': unique_url[link]
+                    })
+        semaphore.release()
 
 
 async def main(rps):
@@ -33,17 +34,18 @@ async def main(rps):
     tasks = list()
     unique_url = dict(url=str(datetime.now()))
     queue = asyncio.Queue()
+    es = Elasticsearch()
+    semaphore = asyncio.Semaphore(value=rps)
 
+    queue.put_nowait(url)
     async with aiohttp.ClientSession() as session:
-        for i in range(rps):
+        for i in range(100):
             str_task = 'task' + str(i)
-            task = asyncio.create_task(fetch_url(str_task, url, session, queue, unique_url))
+            task = asyncio.create_task(fetch_url(str_task, session, queue, unique_url, es, semaphore))
             tasks.append(task)
 
         await asyncio.gather(*tasks)
-    # print(len(unique_url))
+
 
 if __name__ == "__main__":
-    # start = time.time()
     asyncio.run(main(10))
-    # print(start-time.time())
