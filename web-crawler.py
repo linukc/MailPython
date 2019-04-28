@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from datetime import datetime
 
 
-async def fetch_url(str_task, session, queue, unique_url, es, semaphore):
+async def fetch_url(session, queue, unique_url, es, semaphore):
     while True:
         await semaphore.acquire()
         url = await queue.get()
@@ -40,8 +40,7 @@ async def main(rps):
     queue.put_nowait(url)
     async with aiohttp.ClientSession() as session:
         for i in range(100):
-            str_task = 'task' + str(i)
-            task = asyncio.create_task(fetch_url(str_task, session, queue, unique_url, es, semaphore))
+            task = asyncio.create_task(fetch_url(session, queue, unique_url, es, semaphore))
             tasks.append(task)
 
         await asyncio.gather(*tasks)
