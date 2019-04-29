@@ -24,7 +24,7 @@ class Limiter:
             time.sleep(1 - timer)
             self.count = 0
 
-        elif self.count == self.rps and timer >= 1:
+        elif timer >= 1:
             self.count = 0
 
     async def __aexit__(self, *args):
@@ -64,7 +64,7 @@ async def main():
     queue.put_nowait(url)
 
     async with aiohttp.ClientSession() as session:
-        for i in range(20):
+        for i in range(15):
             task = asyncio.create_task(fetch_url(session, queue, unique_url, es, limit))
             tasks.append(task)
 
