@@ -14,7 +14,6 @@ class Limiter:
         self.start = datetime.now()
 
     async def __aenter__(self):
-        print(self.count)
         if self.count == 0:
             self.start = datetime.now()
 
@@ -24,7 +23,6 @@ class Limiter:
         if self.count == self.rps and timer < 1:
             time.sleep(1 - timer)
             self.count = 0
-            print(f"Сплю {1-timer}")
 
         elif timer >= 1:
             self.count = 0
@@ -36,7 +34,6 @@ class Limiter:
 async def fetch_url(session, queue, unique_url, es, limit, error_log):
     while True:
         url = await queue.get()
-        print("Беру")
         async with limit:
             try:
                 async with session.get(url) as response:
@@ -48,7 +45,6 @@ async def fetch_url(session, queue, unique_url, es, limit, error_log):
                         link = urljoin(url, link.get('href'))
                         if link.startswith('https://docs.python.org/') and link not in unique_url.keys():
                             queue.put_nowait(link)
-                            print("Кладу найденные url")
 
                     unique_url[url] = datetime.now()
                     es.index(index="crawler", doc_type='info', body={
@@ -56,7 +52,7 @@ async def fetch_url(session, queue, unique_url, es, limit, error_log):
                         'texts': html.get_text(),
                         'timestamp': unique_url[url]
                     })
-                    print("Кладу текст")
+
             except Exception:
                 error_log[url] = datetime.now()
 
