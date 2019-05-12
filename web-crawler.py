@@ -14,6 +14,7 @@ class Limiter:
         self.start = datetime.now()
 
     async def __aenter__(self):
+        print(self.count)
         if self.count == 0:
             self.start = datetime.now()
 
@@ -23,6 +24,7 @@ class Limiter:
         if self.count == self.rps and timer < 1:
             time.sleep(1 - timer)
             self.count = 0
+            print(f"Сплю {1-timer}")
 
         elif timer >= 1:
             self.count = 0
@@ -31,26 +33,33 @@ class Limiter:
         pass
 
 
-async def fetch_url(session, queue, unique_url, es, limit):
+async def fetch_url(session, queue, unique_url, es, limit, error_log):
     while True:
         url = await queue.get()
+        print("Беру")
         async with limit:
-            async with session.get(url) as response:
+            try:
+                async with session.get(url) as response:
 
-                data = await response.read()
-                html = BeautifulSoup(data, 'html.parser')
+                    data = await response.read()
+                    html = BeautifulSoup(data, 'html.parser')
 
-                for link in html.find_all('a') + html.find_all('link'):
-                    link = urljoin(url, link.get('href'))
-                    if link.startswith('https://docs.python.org/') and link not in unique_url.keys():
-                        queue.put_nowait(link)
+                    for link in html.find_all('a') + html.find_all('link'):
+                        link = urljoin(url, link.get('href'))
+                        if link.startswith('https://docs.python.org/') and link not in unique_url.keys():
+                            queue.put_nowait(link)
+                            print("Кладу найденные url")
 
-                unique_url[url] = datetime.now()
-                es.index(index="crawler", doc_type='info', body={
-                    'site': url,
-                    'texts': html.get_text(),
-                    'timestamp': unique_url[url]
-                })
+                    unique_url[url] = datetime.now()
+                    es.index(index="crawler", doc_type='info', body={
+                        'site': url,
+                        'texts': html.get_text(),
+                        'timestamp': unique_url[url]
+                    })
+                    print("Кладу текст")
+            except Exception:
+                error_log[url] = datetime.now()
+
 
 
 async def main():
@@ -60,12 +69,12 @@ async def main():
     queue = asyncio.Queue()
     es = Elasticsearch()
     limit = Limiter(10)
-
+    error_log = {}
     queue.put_nowait(url)
 
     async with aiohttp.ClientSession() as session:
         for i in range(15):
-            task = asyncio.create_task(fetch_url(session, queue, unique_url, es, limit))
+            task = asyncio.create_task(fetch_url(session, queue, unique_url, es, limit, error_log))
             tasks.append(task)
 
         await asyncio.gather(*tasks)
