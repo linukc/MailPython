@@ -4,7 +4,6 @@ from elasticsearch import Elasticsearch
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from datetime import datetime
-import time
 
 
 class Limiter:
@@ -21,7 +20,7 @@ class Limiter:
         timer = (datetime.now() - self.start).total_seconds()
 
         if self.count == self.rps and timer < 1:
-            time.sleep(1 - timer)
+            asyncio.sleep(1 - timer)
             self.count = 0
 
         elif timer >= 1:
