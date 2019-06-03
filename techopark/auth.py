@@ -94,9 +94,13 @@ class AuthMS:
                         "data": {"email": email, "password": password, "name": name, "create": create, "last": last}}
         return {"status": "“forbidden”", "data": {}}
 
-    async def main():
-        auth_ms = AuthMS()
-        await auth_ms.set_settings()
-        await auth_ms.channel.basic_consume(auth_ms.callback, queue_name='inbound', no_ack=True)
 
-    asyncio.run(main())
+async def main():
+    auth_ms = AuthMS()
+    await auth_ms.set_settings()
+    await auth_ms.channel.basic_consume(auth_ms.callback, queue_name='inbound', no_ack=True)
+
+event_loop = asyncio.get_event_loop()
+event_loop.run_until_complete(main())
+event_loop.run_forever()
+
