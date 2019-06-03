@@ -132,7 +132,7 @@ class Handler:
         else:
             return web.Response(body=json.dumps(rows),status=403)
 
-    def index(self, request):
+    async def index(self, request):
         request_id = str(uuid4())
         data = await request.json()
         data["token"] = request.match_info.get('token')
@@ -155,7 +155,7 @@ app = web.Application()
 app.add_routes([web.post('/signup', handler.signup),
                 web.post('/login', handler.login),
                 web.get('/current/{token}', handler.current),
-                web.post('search', handler.search),
+                web.post('/search', handler.search),
                 web.post('/index/{token}', handler.index),
                 web.get('/stat/{token}', handler.stat)])
 web.run_app(app)
