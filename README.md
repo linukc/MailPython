@@ -1,1 +1,1 @@
-# MailPython
+# MailPython projects
